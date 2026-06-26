@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de Circuito Elétrico - EdTech</title>
+  <style>
+    /* ==========================================================================
+       VARIÁVEIS GERAIS E PALETA DE CORES (Acessível, Infantil e Alta Definição)
+       ========================================================================== */
+    :root {
+      --bg-color: #F0F4F8;
+      --primary-color: #0288D1;
+      --accent-color: #00BCD4;
+      --text-color: #37474F;
+      --slot-bg: #FFFFFF;
+      --slot-border: #80CBC4;
+      --success-color: #4CAF50;
+      --error-color: #E53935;
+      --font-main: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --wire-base: #B0BEC5;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-main);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 15px;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      color: #0288D1;
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+    }
+
+    p.subtitle {
+      font-size: 1rem;
+      color: #546E7A;
+    }
+
+    /* ==========================================================================
+       ÁREA DO ROBÔ (FEEDBACK PEDAGÓGICO CONSTRUTIVO)
+       ========================================================================== */
+    .robot-area {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      max-width: 680px;
+      margin-bottom: 15px;
+      background: white;
+      padding: 12px 18px;
+      border-radius: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+    }
+
+    .robot-avatar {
+      width: 70px;
+      height: 70px;
+      flex-shrink: 0;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .speech-bubble {
+      margin-left: 15px;
+      font-size: 1rem;
+      line-height: 1.4;
+      flex-grow: 1;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+
+    /* ==========================================================================
+       TABULEIRO DO CIRCUITO (LAÇO TRIANGULAR COM FIOS EMBUTIDOS)
+       ========================================================================== */
+    .circuit-board-wrapper {
+      background: #FFFFFF;
+      padding: 15px;
+      border-radius: 20px;
+      box-shadow: 0 10px 0 #CFD8DC;
+      width: 100%;
+      max-width: 680px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .circuit-board {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 640 / 380;
+      background: #FAFAFA;
+      border-radius: 12px;
+      border: 2px dashed #ECEFF1;
+      overflow: hidden;
+    }
+
+    /* Linhas de conexão que já vêm dadas (Fios fixos de cobre) */
+    .circuit-background-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .wire-base-path {
+      fill: none;
+      stroke: var(--wire-base);
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: stroke 0.4s;
+    }
+
+    /* Fluxo ativo de elétrons simulando a corrente circulando */
+    .wire-active-flow {
+      fill: none;
+      stroke: #FFD54F;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 15, 12;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    @keyframes electricFlow {
+      to {
+        stroke-dashoffset: -54;
+      }
+    }
+
+    .circuit-on .wire-active-flow {
+      opacity: 1;
+      animation: electricFlow 1s linear infinite;
+    }
+
+    .circuit-on .wire-base-path {
+      stroke: #FF9800;
+    }
+
+    /* ==========================================================================
+       SLOTS DE ENCAIXE (Disfarçados sem silhueta de dica para pura dedução)
+       ========================================================================== */
+    .slot {
+      position: absolute;
+      width: 18%;
+      height: 28%;
+      background: var(--slot-bg);
+      border: 3px dashed var(--slot-border);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.03), inset 0 2px 4px rgba(0,0,0,0.05);
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .slot:hover {
+      background: #E0F2F1;
+      border-color: var(--accent-color);
+      transform: scale(1.08);
+      box-shadow: 0 6px 15px rgba(0, 188, 212, 0.25);
+    }
+
+    /* Quando preenchido corretamente */
+    .slot.filled {
+      border: 3px solid #4CAF50;
+      background: #E8F5E9;
+      cursor: default;
+    }
+
+    .slot.filled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Erro de Sequência (Agitação Visual) */
+    .slot.error-shake {
+      animation: shake 0.4s ease-in-out;
+      border-color: var(--error-color);
+      background: #FFEBEE;
+    }
+
+    .neutral-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    /* Coordenadas que batem perfeitamente com a trilha dos fios */
+    .slot-A { top: 15%; left: 15%; } /* Topo Esquerdo */
+    .slot-B { top: 15%; left: 67%; } /* Topo Direito */
+    .slot-C { top: 60%; left: 41%; } /* Base Central */
+
+    /* ==========================================================================
+       ÁREA DE INVENTÁRIO (Os 3 componentes reais)
+       ========================================================================== */
+    .inventory-label {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #78909C;
+      margin-bottom: 8px;
+    }
+
+    .inventory-container {
+      background: white;
+      padding: 15px;
+      border-radius: 18px;
+      box-shadow: 0 8px 0 #CFD8DC;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      width: 100%;
+      max-width: 680px;
+    }
+
+    .item {
+      width: 95px;
+      height: 95px;
+      background: white;
+      border: 3px solid #CFD8DC;
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+      user-select: none;
+      box-shadow: 0 3px 5px rgba(0,0,0,0.04);
+    }
+
+    .item svg {
+      width: 85%;
+      height: 85%;
+      pointer-events: none;
+    }
+
+    .item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 12px rgba(0,0,0,0.08);
+      border-color: #B0BEC5;
+    }
+
+    .item.selected {
+      border-color: #FFC107;
+      box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.4);
+      transform: scale(1.08) translateY(-4px);
+      background: #FFFDE7;
+    }
+
+    .item.placed {
+      cursor: default;
+      border: none;
+      box-shadow: none;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+    }
+    
+    .item.placed:hover {
+      transform: none;
+    }
+
+    /* ==========================================================================
+       ESTADOS DINÂMICOS DOS COMPONENTES (ANIMAÇÕES APÓS SUCESSO)
+       ========================================================================== */
+    .bulb-glow {
+      fill: #ECEFF1;
+      transition: fill 0.5s ease;
+    }
+    .bulb-rays {
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    /* Sucesso Visual */
+    .circuit-on .bulb-glow {
+      fill: #FFF176;
+      filter: drop-shadow(0 0 12px #FFEB3B);
+    }
+    .circuit-on .bulb-rays {
+      opacity: 1;
+    }
+
+    /* Tecla do interruptor */
+    .switch-plate { fill: #F5F5F5; stroke: #E0E0E0; }
+    .switch-rocker-off { display: block; }
+    .switch-rocker-on { display: none; }
+
+    .circuit-on .switch-rocker-off { display: none; }
+    .circuit-on .switch-rocker-on { display: block; }
+    .circuit-on .switch-plate { fill: #E0F2F1; stroke: #80CBC4; }
+
+    /* ==========================================================================
+       CONTROLES E EFEITOS EXTRAS
+       ========================================================================== */
+    .controls {
+      margin-top: 15px;
+    }
+
+    .btn-reset {
+      background: #FF9800;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      font-size: 1rem;
+      border-radius: 30px;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 4px 0 #F57C00;
+      transition: all 0.2s;
+      font-family: var(--font-main);
+    }
+
+    .btn-reset:hover {
+      background: #FFA726;
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #F57C00;
+    }
+
+    .confetti {
+      position: fixed;
+      top: -10px;
+      width: 8px;
+      height: 8px;
+      z-index: 9999;
+      pointer-events: none;
+      animation: fall linear forwards;
+    }
+
+    @keyframes fall {
+      to { transform: translateY(100vh) rotate(720deg); }
+    }
+
+    /* ==========================================================================
+       RODAPÉ DE ATRIBUIÇÃO E DIREITOS LEGAIS (CREATIVE COMMONS CC BY-NC-ND)
+       ========================================================================== */
+    footer {
+      margin-top: 35px;
+      margin-bottom: 20px;
+      padding: 18px;
+      background: #FFFFFF;
+      border-top: 3px solid #ECEFF1;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 680px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: #607D8B;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+      line-height: 1.5;
+    }
+
+    .footer-title {
+      font-weight: bold;
+      color: #37474F;
+      margin-bottom: 6px;
+    }
+
+    .footer-license-box {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: #F8F9FA;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-top: 10px;
+      border: 1px solid #CFD8DC;
+    }
+
+    .footer-badge-svg {
+      width: 110px;
+      height: 25px;
+    }
+
+    .footer-license-text {
+      font-weight: 500;
+      font-size: 0.76rem;
+      color: #546E7A;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      h1 { font-size: 1.4rem; }
+      p.subtitle { font-size: 0.85rem; }
+      .robot-area { flex-direction: column; text-align: center; padding: 10px; }
+      .robot-avatar { width: 55px; height: 55px; }
+      .speech-bubble { margin-left: 0; margin-top: 8px; font-size: 0.9rem; }
+      .inventory-container { gap: 10px; padding: 10px; }
+      .item { width: 80px; height: 80px; }
+      footer { font-size: 0.78rem; padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Desafio da Ordem Elétrica</h1>
+    <p class="subtitle">Descubra a ordem correta dos componentes para fazer o circuito funcionar!</p>
+  </header>
+
+  <!-- ROBÔ AUXILIAR PEDAGÓGICO -->
+  <div class="robot-area">
+    <svg viewBox="0 0 100 100" class="robot-avatar">
+      <rect x="20" y="25" width="60" height="50" rx="12" fill="#E0F7FA" stroke="#00BCD4" stroke-width="4"/>
+      <circle cx="40" cy="45" r="5" fill="#00838F"/>
+      <circle cx="60" cy="45" r="5" fill="#00838F"/>
+      <path d="M 40 58 Q 50 68 60 58" fill="none" stroke="#00838F" stroke-width="4" stroke-linecap="round"/>
+      <line x1="50" y1="25" x2="50" y2="8" stroke="#00BCD4" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="50" cy="8" r="6" fill="#FFC107" stroke="#FFA000" stroke-width="2"/>
+      <rect x="10" y="40" width="10" height="20" rx="3" fill="#00BCD4"/>
+      <rect x="80" y="40" width="10" height="20" rx="3" fill="#00BCD4"/>
+    </svg>
+    <div class="speech-bubble" id="robot-text">
+      Olá! Os fios já estão todos conectados. Agora você só precisa colocar a <b>Bateria</b>, a <b>Lâmpada</b> e o <b>Interruptor</b> nos lugares certos. Escolha qualquer espaço e encaixe a primeira peça!
+    </div>
+  </div>
+
+  <!-- TABULEIRO DO CIRCUITO -->
+  <div class="circuit-board-wrapper">
+    <div class="circuit-board" id="board">
+      
+      <!-- Linhas e Fluxos de Corrente de Fundo (Proporcionais pelo viewBox) -->
+      <svg class="circuit-background-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <!-- Caminho contínuo que liga o centro de todos os 3 slots (Trapezóide perfeitamente centralizado) -->
+        <path class="wire-base-path" d="M 50,77.5 L 24,27.5 L 76,27.5 Z" />
+        <path class="wire-active-flow" d="M 50,77.5 L 24,27.5 L 76,27.5 Z" />
+      </svg>
+
+      <!-- OS TRÊS SLOTS MISTERIOSOS -->
+      
+      <!-- Slot A (Topo Esquerdo) -->
+      <div class="slot slot-A" data-id="slot-A" title="Espaço de Conexão A">
+        <div class="neutral-placeholder">
+          <svg viewBox="0 0 100 100" style="width: 70%; height: 70%;">
+            <circle cx="50" cy="50" r="30" fill="none" stroke="#B0BEC5" stroke-width="4" stroke-dasharray="6,4"/>
+            <text x="50" y="59" font-family="sans-serif" font-size="28" font-weight="bold" fill="#90A4AE" text-anchor="middle">?</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Slot B (Topo Direito) -->
+      <div class="slot slot-B" data-id="slot-B" title="Espaço de Conexão B">
+        <div class="neutral-placeholder">
+          <svg viewBox="0 0 100 100" style="width: 70%; height: 70%;">
+            <circle cx="50" cy="50" r="30" fill="none" stroke="#B0BEC5" stroke-width="4" stroke-dasharray="6,4"/>
+            <text x="50" y="59" font-family="sans-serif" font-size="28" font-weight="bold" fill="#90A4AE" text-anchor="middle">?</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Slot C (Base Central) -->
+      <div class="slot slot-C" data-id="slot-C" title="Espaço de Conexão C">
+        <div class="neutral-placeholder">
+          <svg viewBox="0 0 100 100" style="width: 70%; height: 70%;">
+            <circle cx="50" cy="50" r="30" fill="none" stroke="#B0BEC5" stroke-width="4" stroke-dasharray="6,4"/>
+            <text x="50" y="59" font-family="sans-serif" font-size="28" font-weight="bold" fill="#90A4AE" text-anchor="middle">?</text>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- INVENTÁRIO (Os 3 Componentes) -->
+  <p class="inventory-label">Arraste ou clique nos componentes abaixo:</p>
+  <div class="inventory-container" id="inventory">
+    
+    <!-- Item: Lâmpada -->
+    <div class="item" data-type="bulb" title="Lâmpada Incandescente">
+      <svg viewBox="0 0 100 100" style="overflow: visible;">
+        <rect x="35" y="65" width="30" height="15" rx="3" fill="#9E9E9E" stroke="#616161" stroke-width="2"/>
+        <path d="M 40 80 L 60 80 L 55 88 L 45 88 Z" fill="#424242"/>
+        <path d="M50 15 C32 15, 22 32, 27 48 C30 56, 37 62, 37 62 L63 62 C63 62, 70 56, 73 48 C78 32, 68 15, 50 15 Z" class="bulb-glow" stroke="#78909C" stroke-width="3"/>
+        <path d="M 44 62 L 44 45 M 56 62 L 56 45 M 44 45 Q 50 35 56 45" fill="none" stroke="#546E7A" stroke-width="2"/>
+        <g class="bulb-rays" stroke="#FFD54F" stroke-width="4" stroke-linecap="round">
+          <line x1="50" y1="5" x2="50" y2="-5" />
+          <line x1="78" y1="18" x2="88" y2="8" />
+          <line x1="82" y1="42" x2="94" y2="42" />
+          <line x1="22" y1="18" x2="12" y2="8" />
+          <line x1="18" y1="42" x2="6" y2="42" />
+        </g>
+      </svg>
+    </div>
+
+    <!-- Item: Interruptor Doméstico -->
+    <div class="item" data-type="switch" title="Interruptor Doméstico">
+      <svg viewBox="0 0 100 100">
+        <rect x="12" y="12" width="76" height="76" rx="14" class="switch-plate" stroke-width="3"/>
+        <rect x="22" y="22" width="56" height="56" rx="6" fill="#FBFBFB" stroke="#EEEEEE" stroke-width="1.5"/>
+        
+        <g class="switch-rocker-off">
+          <rect x="36" y="28" width="28" height="44" rx="4" fill="#ECEFF1" stroke="#CFD8DC" stroke-width="2"/>
+          <polygon points="36,50 64,50 64,72 36,72" fill="#CFD8DC" opacity="0.4"/>
+          <circle cx="50" cy="38" r="3" fill="#D32F2F" />
+        </g>
+
+        <g class="switch-rocker-on">
+          <rect x="36" y="28" width="28" height="44" rx="4" fill="#FFFFFF" stroke="#00BCD4" stroke-width="2"/>
+          <polygon points="36,28 64,28 64,50 36,50" fill="#B2EBF2" opacity="0.4"/>
+          <circle cx="50" cy="62" r="3" fill="#4CAF50" />
+        </g>
+      </svg>
+    </div>
+
+    <!-- Item: Bateria -->
+    <div class="item" data-type="battery" title="Pilha Alcalina">
+      <svg viewBox="0 0 100 100">
+        <rect x="15" y="32" width="66" height="36" rx="5" fill="#FFEB3B" stroke="#F57F17" stroke-width="3"/>
+        <rect x="81" y="42" width="8" height="16" rx="2" fill="#90A4AE" stroke="#607D8B" stroke-width="2"/>
+        <path d="M 15 32 L 45 32 L 45 68 L 15 68 Z" fill="#37474F"/>
+        <text x="28" y="56" font-size="20" font-weight="bold" fill="white" text-anchor="middle" font-family="sans-serif">-</text>
+        <text x="63" y="56" font-size="20" font-weight="bold" fill="#37474F" text-anchor="middle" font-family="sans-serif">+</text>
+        <path d="M 48 50 L 54 42 L 52 50 L 58 50 L 50 58 L 52 50 Z" fill="#E53935"/>
+      </svg>
+    </div>
+
+  </div>
+
+  <div class="controls">
+    <button class="btn-reset" onclick="resetGame()">Reiniciar Desafio</button>
+  </div>
+
+  <!-- RODAPÉ INSTITUCIONAL COM ATRIBUIÇÃO E CREATIVE COMMONS -->
+  <footer>
+    <div class="footer-title">Material Digital de Robótica</div>
+    <div>Secretaria da Educação do Estado de São Paulo (SEDUC-SP)</div>
+    <div>Desenvolvido pela Equipe de Robótica — 2026</div>
+    
+    <div class="footer-license-box">
+      <!-- Badge CC BY-NC-ND Oficial em Vetor SVG Inline -->
+      <svg class="footer-badge-svg" viewBox="0 0 120 30" aria-label="CC BY-NC-ND">
+        <rect x="0" y="0" width="120" height="30" rx="4" fill="#37474F"/>
+        <!-- CC Circle -->
+        <circle cx="16" cy="15" r="9" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+        <text x="16" y="19" font-family="Segoe UI, sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle">cc</text>
+        <!-- BY Circle -->
+        <circle cx="38" cy="15" r="9" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+        <path d="M38 10 A1.8 1.8 0 1 1 38 13.6 A1.8 1.8 0 1 1 38 10 M34 21.5 L34 17.5 Q34 16 35.5 16 L40.5 16 Q42 16 42 17.5 L42 21.5" fill="none" stroke="#FFFFFF" stroke-width="1.5"/>
+        <line x1="38" y1="18.5" x2="38" y2="23.5" stroke="#FFFFFF" stroke-width="1.5"/>
+        <!-- NC Circle -->
+        <circle cx="60" cy="15" r="9" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+        <text x="60" y="18.5" font-family="Segoe UI, sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF" text-anchor="middle">$</text>
+        <line x1="55" y1="19.5" x2="65" y2="10.5" stroke="#FFFFFF" stroke-width="1.5"/>
+        <!-- ND Circle -->
+        <circle cx="82" cy="15" r="9" fill="none" stroke="#FFFFFF" stroke-width="1.8"/>
+        <line x1="77.5" y1="13" x2="86.5" y2="13" stroke="#FFFFFF" stroke-width="1.8"/>
+        <line x1="77.5" y1="17" x2="86.5" y2="17" stroke="#FFFFFF" stroke-width="1.8"/>
+        <!-- CC Label -->
+        <text x="105" y="18.5" font-family="Segoe UI, sans-serif" font-size="10" font-weight="900" fill="#FFFFFF" text-anchor="middle">4.0</text>
+      </svg>
+      <div class="footer-license-text">Licença CC BY-NC-ND 4.0</div>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * MOTOR DE AUDIO SINTETIZADO (Web Audio API)
+     * Mantendo os feedbacks de áudio ricos e autônomos
+     */
+    const playSynthesizedSound = (type) => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        
+        if (type === 'success') {
+          const freqs = [523.25, 659.25, 783.99]; // Acorde Maior de Dó (C5, E5, G5)
+          freqs.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            gain.gain.setValueAtTime(0.1, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.2);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.25);
+          });
+        } else if (type === 'error') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(130, now);
+          osc.frequency.linearRampToValueAtTime(90, now + 0.2);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else if (type === 'victory') {
+          const melody = [
+            { f: 523.25, d: 0.12 },
+            { f: 659.25, d: 0.12 },
+            { f: 783.99, d: 0.12 },
+            { f: 1046.50, d: 0.25 },
+            { f: 1318.51, d: 0.5 }
+          ];
+          let time = now;
+          melody.forEach(note => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(note.f, time);
+            gain.gain.setValueAtTime(0.15, time);
+            gain.gain.exponentialRampToValueAtTime(0.01, time + note.d);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(time);
+            osc.stop(time + note.d);
+            time += note.d * 0.85;
+          });
+        }
+      } catch (err) {
+        console.warn("AudioContext não suportado ou bloqueado pelo navegador.");
+      }
+    };
+
+    // ==========================================================================
+    // SISTEMA E REGRAS DINÂMICAS DO CIRCUITO (ÂNCORES RELACIONAIS)
+    // ==========================================================================
+    let selectedItem = null;
+    let placedCount = 0;
+    
+    // Mapeamento circular dos Slots (Sentido Horário)
+    // C (Base) -> A (Topo Esquerdo) -> B (Topo Direito) -> C (Base)
+    const slotNavigation = {
+      'slot-C': { next: 'slot-A', prev: 'slot-B' },
+      'slot-A': { next: 'slot-B', prev: 'slot-C' },
+      'slot-B': { next: 'slot-C', prev: 'slot-A' }
+    };
+
+    // A ordem física e lógica funcional que os elétrons devem seguir é:
+    // Bateria (battery) ➔ Interruptor (switch) ➔ Lâmpada (bulb) (em loop)
+    const componentOrder = ['battery', 'switch', 'bulb'];
+
+    // Objeto que armazenará a expectativa correta de cada slot assim que a 1ª peça for ancorada
+    let dynamicExpectations = {
+      'slot-A': null,
+      'slot-B': null,
+      'slot-C': null
+    };
+
+    const inventoryContainer = document.getElementById('inventory');
+    const items = document.querySelectorAll('.item');
+    const slots = document.querySelectorAll('.slot');
+    const robotText = document.getElementById('robot-text');
+    const board = document.getElementById('board');
+
+    // Dicionários para traduzir o nome dos componentes para o balão de fala
+    const componentNames = {
+      'battery': '<b>Bateria</b>',
+      'switch': '<b>Interruptor</b>',
+      'bulb': '<b>Lâmpada</b>'
+    };
+
+    const slotNames = {
+      'slot-A': '<b>canto esquerdo</b>',
+      'slot-B': '<b>canto direito</b>',
+      'slot-C': '<b>canto de baixo</b>'
+    };
+
+    function initGame() {
+      shuffleInventory();
+      setupInteractions();
+    }
+
+    /**
+     * Garante o embaralhamento correto do inventário no início e no reset
+     */
+    function shuffleInventory() {
+      const itemsArray = Array.from(inventoryContainer.children);
+      itemsArray.sort(() => Math.random() - 0.5);
+      itemsArray.forEach(item => inventoryContainer.appendChild(item));
+    }
+
+    /**
+     * Gerencia cliques e seleções
+     */
+    function setupInteractions() {
+      items.forEach(item => {
+        item.addEventListener('click', () => {
+          if (item.classList.contains('placed')) return;
+
+          items.forEach(i => i.classList.remove('selected'));
+          selectedItem = item;
+          item.classList.add('selected');
+        });
+      });
+
+      slots.forEach(slot => {
+        slot.addEventListener('click', () => {
+          if (!selectedItem) return;
+          if (slot.classList.contains('filled')) return;
+
+          const slotId = slot.getAttribute('data-id');
+          const itemType = selectedItem.getAttribute('data-type');
+
+          // Se for o PRIMEIRO componente a ser posicionado, ele é aceito de imediato!
+          if (placedCount === 0) {
+            anchorCircuitExpectations(slotId, itemType);
+            handleSuccess(slot);
+          } else {
+            // Se já houver peças, valida em relação à expectativa dinâmica estabelecida
+            if (dynamicExpectations[slotId] === itemType) {
+              handleSuccess(slot);
+            } else {
+              handleError(slot, slotId, itemType);
+            }
+          }
+        });
+      });
+    }
+
+    /**
+     * ESTABELECE A REGRA DO CIRCUITO DINÂMICO APÓS O PRIMEIRO CLIQUE
+     * Se a Bateria for colocada em "slot-C", o circuito dita que:
+     * O interruptor (switch) deve ir para o próximo slot horário (slot-A)
+     * A lâmpada (bulb) deve ir para o slot anterior (slot-B)
+     */
+    function anchorCircuitExpectations(firstSlotId, firstItemType) {
+      dynamicExpectations[firstSlotId] = firstItemType;
+
+      // Encontra os índices na nossa ordem lógica estabelecida (Bateria -> Interruptor -> Lâmpada)
+      const currentIndex = componentOrder.indexOf(firstItemType);
+      const nextType = componentOrder[(currentIndex + 1) % 3];
+      const prevType = componentOrder[(currentIndex + 2) % 3]; // +2 equivale a -1 em módulo de 3
+
+      const nextSlotId = slotNavigation[firstSlotId].next;
+      const prevSlotId = slotNavigation[firstSlotId].prev;
+
+      dynamicExpectations[nextSlotId] = nextType;
+      dynamicExpectations[prevSlotId] = prevType;
+    }
+
+    /**
+     * Manipula o encaixe correto de uma peça
+     */
+    function handleSuccess(slot) {
+      playSynthesizedSound('success');
+      
+      const placeholder = slot.querySelector('.neutral-placeholder');
+      if (placeholder) placeholder.style.display = 'none';
+
+      slot.appendChild(selectedItem);
+      slot.classList.add('filled');
+      
+      selectedItem.classList.remove('selected');
+      selectedItem.classList.add('placed');
+      
+      const itemType = selectedItem.getAttribute('data-type');
+      const slotId = slot.getAttribute('data-id');
+
+      selectedItem = null;
+      placedCount++;
+
+      if (placedCount === 1) {
+        // Explica para a criança que a ordem lógica foi travada a partir do movimento dela!
+        const nextSlotId = slotNavigation[slotId].next;
+        const prevSlotId = slotNavigation[slotId].prev;
+        
+        const expectedNextType = dynamicExpectations[nextSlotId];
+        const expectedPrevType = dynamicExpectations[prevSlotId];
+
+        robotText.innerHTML = `Excelente! Você começou colocando o(a) ${componentNames[itemType]} no ${slotNames[slotId]}.<br>
+        Para que a eletricidade corra de forma segura, a ordem deve ser: <b>Bateria ➔ Interruptor ➔ Lâmpada</b> (sentido horário).<br>
+        Isso significa que agora o(a) ${componentNames[expectedNextType]} deve ir para o ${slotNames[nextSlotId]}. Onde ele deve ser colocado? Descubra!`;
+        robotText.style.color = "#4CAF50";
+      } else if (placedCount === 3) {
+        triggerVictory();
+      } else {
+        robotText.innerHTML = "Muito bom! Essa peça está no lugar perfeito para dar continuidade à nossa corrente de energia! Só falta mais uma!";
+        robotText.style.color = "#4CAF50";
+      }
+    }
+
+    /**
+     * Manipula erros de encaixe, dando dicas direcionadas pelo robô
+     */
+    function handleError(slot, slotId, itemType) {
+      playSynthesizedSound('error');
+
+      slot.classList.add('error-shake');
+      setTimeout(() => slot.classList.remove('error-shake'), 400);
+
+      // Descobre qual componente realmente deveria ir para aquele slot
+      const expectedType = dynamicExpectations[slotId];
+
+      robotText.innerHTML = `Hum... Lembre-se do sentido do circuito: <b>Bateria ➔ Interruptor ➔ Lâmpada</b>!<br>
+      Colocar o(a) ${componentNames[itemType]} aí cortaria o caminho elétrico. Nesse slot do ${slotNames[slotId]} precisamos de outro componente. Tente novamente!`;
+      robotText.style.color = "#E53935";
+
+      if (selectedItem) {
+        selectedItem.classList.remove('selected');
+      }
+      selectedItem = null;
+    }
+
+    /**
+     * Liga a corrente e acende a lâmpada ao completar o laço funcional
+     */
+    function triggerVictory() {
+      playSynthesizedSound('victory');
+      
+      robotText.innerHTML = "<strong>INCRÍVEL! ⚡💡</strong> Você organizou os componentes na ordem elétrica correta! Agora a corrente pode caminhar de forma contínua do polo da bateria até o interruptor e acender a lâmpada!";
+      robotText.style.color = "#0288D1";
+      
+      board.classList.add('circuit-on');
+      launchConfetti();
+    }
+
+    /**
+     * Efeito lúdico com confetes coloridos
+     */
+    function launchConfetti() {
+      const colors = ['#00BCD4', '#FFEB3B', '#FF9800', '#4CAF50', '#E53935', '#E91E63'];
+      for (let i = 0; i < 40; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.animationDuration = (Math.random() * 2 + 2.5) + 's';
+        confetti.style.animationDelay = (Math.random() * 0.8) + 's';
+        document.body.appendChild(confetti);
+        setTimeout(() => confetti.remove(), 4000);
+      }
+    }
+
+    /**
+     * Reseta todo o circuito voltando ao estado de início e re-embaralha
+     */
+    function resetGame() {
+      placedCount = 0;
+      selectedItem = null;
+      
+      // Limpa as expectativas dinâmicas
+      dynamicExpectations = {
+        'slot-A': null,
+        'slot-B': null,
+        'slot-C': null
+      };
+
+      board.classList.remove('circuit-on');
+      robotText.innerHTML = "Olá! Os fios já estão todos conectados. Agora você só precisa colocar a <b>Bateria</b>, a <b>Lâmpada</b> e o <b>Interruptor</b> nos lugares certos. Escolha qualquer espaço e encaixe a primeira peça!";
+      robotText.style.color = "#37474F";
+
+      slots.forEach(slot => {
+        slot.classList.remove('filled');
+        const placeholder = slot.querySelector('.neutral-placeholder');
+        if (placeholder) placeholder.style.display = 'flex';
+        
+        const placedItem = slot.querySelector('.item');
+        if (placedItem) {
+          placedItem.classList.remove('placed', 'selected');
+          inventoryContainer.appendChild(placedItem);
+        }
+      });
+
+      shuffleInventory();
+    }
+
+    window.onload = initGame;
+  </script>
+</body>
+</html>
